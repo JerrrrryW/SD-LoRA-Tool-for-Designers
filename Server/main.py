@@ -39,60 +39,7 @@ app.add_middleware(
 class GenerateRequest(BaseModel):
     prompt: str
     negative_prompt: Optional[str] = None
-
-
-
-
-
-
-# --- API Endpoints ---
-@app.get("/")
-def read_root():
-    return {"message": "Backend server is running."}
-
-import json
-
-async def generate_image_stream(req: GenerateRequest):
-    """Generates an image and streams progress updates."""
-    # Callback function to update progress
-    def progress_callback(step: int, timestep: float, latents: torch.FloatTensor):
-        progress = step / 50 * 100
-        # Yield progress update as a JSON string
-        yield f"data: {json.dumps({'status': 'processing', 'step': step, 'total_steps': 50, 'progress': progress})}\n\n"
-
-    try:
-        pipe = DiffusionPipeline.from_pretrained(
-            "runwayml/stable-diffusion-v1-5",
-            torch_dtype=torch.float16,
-            use_safetensors=True,
-        )
-        if torch.backends.mps.is_available():
-            pipe = pipe.to("mps")
-
-        # Generate the image with the callback
-        image = pipe(
-            prompt=req.prompt,
-            negative_prompt=req.negative_prompt,
-            num_inference_steps=50,
-            guidance_scale=7.5,
-            callback_on_step_end=progress_callback,
-        ).images[0]
-
-        # Save the image to a byte stream
-        img_byte_arr = io.BytesIO()
-        image.save(img_byte_arr, format='PNG')
-        img_byte_arr.seek(0)
-        
-        # Yield the final image
-        yield f"data: {json.dumps({'status': 'completed', 'image': img_byte_arr.read().hex()})}\n\n"
-
-    except Exception as e:
-        print(f"Error during image generation: {e}")
-        yield f"data: {json.dumps({'status': 'error', 'message': 'Failed to generate image.'})}\n\n"
-    finally:
-        if 'pipe' in locals():
-            del pipe
-            torch.cuda.empty_cache()
+    lora_model: Optional[str] = None # New field for LoRA model
 
 import uuid
 
@@ -108,6 +55,8 @@ inference_status = {
 # In-memory store for generated images
 # In a real app, you might use a temporary file store or a cache like Redis
 generated_images = {}
+
+# ... (omitting other parts of the file for brevity)
 
 def run_inference_task(req: GenerateRequest):
     """The actual long-running task for generating an image."""
@@ -138,6 +87,15 @@ def run_inference_task(req: GenerateRequest):
         if torch.backends.mps.is_available():
             pipe = pipe.to("mps")
 
+        # Load LoRA weights if a model is specified
+        if req.lora_model and req.lora_model != "None":
+            lora_path = os.path.join("lora_models", req.lora_model)
+            if os.path.isdir(lora_path):
+                inference_status["message"] = f"Loading LoRA model: {req.lora_model}..."
+                pipe.load_lora_weights(lora_path)
+            else:
+                raise FileNotFoundError(f"LoRA model directory not found: {lora_path}")
+
         inference_status["status"] = "processing"
         image = pipe(
             prompt=req.prompt,
@@ -165,6 +123,8 @@ def run_inference_task(req: GenerateRequest):
         inference_status.update({"status": "failed", "message": str(e)})
     finally:
         if pipe is not None:
+            # Unload LoRA weights for the next request
+            pipe.unload_lora_weights()
             del pipe
             torch.cuda.empty_cache()
 

@@ -13,8 +13,18 @@ import {
   Snackbar,
   Alert,
   Paper,
-  LinearProgress, // Import LinearProgress
+  LinearProgress,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
 } from '@mui/material';
+
+interface LoRAModel {
+  name: string;
+  prompt: string;
+  creation_time: string;
+}
 
 interface InferenceStatus {
   status: 'idle' | 'loading' | 'processing' | 'completed' | 'failed';
@@ -28,6 +38,8 @@ interface InferenceStatus {
 const InferencePage: React.FC = () => {
   const [prompt, setPrompt] = useState('');
   const [negativePrompt, setNegativePrompt] = useState('');
+  const [selectedLora, setSelectedLora] = useState('None');
+  const [loraModels, setLoraModels] = useState<LoRAModel[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [status, setStatus] = useState<InferenceStatus>({ 
     status: 'idle', 
@@ -40,6 +52,19 @@ const InferencePage: React.FC = () => {
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' } | null>(null);
   const pollingInterval = useRef<NodeJS.Timeout | null>(null);
+
+  // Effect to fetch LoRA models
+  useEffect(() => {
+    const fetchModels = async () => {
+      try {
+        const response = await axios.get('http://localhost:8000/models');
+        setLoraModels(response.data);
+      } catch (err) {
+        console.error("Failed to fetch LoRA models:", err);
+      }
+    };
+    fetchModels();
+  }, []);
 
   // Effect for polling
   useEffect(() => {
@@ -92,6 +117,7 @@ const InferencePage: React.FC = () => {
       await axios.post('http://localhost:8000/generate', {
         prompt,
         negative_prompt: negativePrompt,
+        lora_model: selectedLora,
       });
     } catch (error) {
       let message = 'An unknown error occurred.';
@@ -119,6 +145,24 @@ const InferencePage: React.FC = () => {
               <LinearProgress variant="determinate" value={status.progress} />
             </Box>
           )}
+
+          <FormControl fullWidth sx={{ mt: 3 }}>
+            <InputLabel id="lora-select-label">Use LoRA Model (Optional)</InputLabel>
+            <Select
+              labelId="lora-select-label"
+              value={selectedLora}
+              label="Use LoRA Model (Optional)"
+              onChange={(e) => setSelectedLora(e.target.value)}
+              disabled={isProcessing}
+            >
+              <MenuItem value="None">None (Base Model Only)</MenuItem>
+              {loraModels.map((model) => (
+                <MenuItem key={model.name} value={model.name}>
+                  {model.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
 
           <Box sx={{ mt: 3 }}>
             <TextField
