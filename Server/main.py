@@ -1,10 +1,14 @@
 from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 import torch
-from typing import List
+from typing import List, Optional
 import shutil
 import os
 from datetime import datetime
+import io
+from diffusers import DiffusionPipeline
 
 from .train_lora import TrainingConfig, start_training as run_lora_training
 
@@ -30,11 +34,57 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# --- Pydantic Models ---
+class GenerateRequest(BaseModel):
+    prompt: str
+    negative_prompt: Optional[str] = None
+
+
+
 # --- API Endpoints ---
 @app.get("/")
 def read_root():
     return {"message": "Backend server is running."}
 
+@app.post("/generate")
+async def generate_image(req: GenerateRequest):
+    """Generates an image using Stable Diffusion based on a prompt."""
+    try:
+        # Load the pipeline only once on startup to save time.
+        # In a production app, you might have a dedicated model-serving microservice.
+        pipe = DiffusionPipeline.from_pretrained(
+            "runwayml/stable-diffusion-v1-5",
+            torch_dtype=torch.float16,
+            use_safetensors=True,
+        )
+        # Move the pipeline to the MPS device for GPU acceleration
+        if torch.backends.mps.is_available():
+            pipe = pipe.to("mps")
+
+        # Generate the image
+        image = pipe(
+            prompt=req.prompt,
+            negative_prompt=req.negative_prompt,
+            num_inference_steps=50, # A reasonable default
+            guidance_scale=7.5,   # A reasonable default
+        ).images[0]
+
+        # Save the image to a byte stream
+        img_byte_arr = io.BytesIO()
+        image.save(img_byte_arr, format='PNG')
+        img_byte_arr.seek(0)
+
+        return StreamingResponse(img_byte_arr, media_type="image/png")
+
+    except Exception as e:
+        print(f"Error during image generation: {e}")
+        return {"status": "error", "message": "Failed to generate image."}
+    finally:
+        # Release the resources used by the model
+        if 'pipe' in locals():
+            del pipe
+            torch.cuda.empty_cache()
 @app.get("/check-mps")
 def check_mps():
     # ... (omitting unchanged endpoint for brevity)

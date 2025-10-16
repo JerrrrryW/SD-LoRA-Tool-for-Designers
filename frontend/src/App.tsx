@@ -1,6 +1,9 @@
 import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import Layout from './components/Layout';
 import TrainingPage from './components/TrainingPage';
-import { CssBaseline, ThemeProvider, createTheme } from '@mui/material';
+import InferencePage from './components/InferencePage';
+import { ThemeProvider, createTheme } from '@mui/material';
 
 // A simple theme for a professional look
 const theme = createTheme({
@@ -18,8 +21,14 @@ const theme = createTheme({
 function App() {
   return (
     <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <TrainingPage />
+      <Router>
+        <Layout>
+          <Routes>
+            <Route path="/" element={<TrainingPage />} />
+            <Route path="/inference" element={<InferencePage />} />
+          </Routes>
+        </Layout>
+      </Router>
     </ThemeProvider>
   );
 }
