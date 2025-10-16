@@ -110,6 +110,19 @@ const TrainingPage: React.FC = () => {
     }
   };
 
+  const handleCancelTraining = async () => {
+    try {
+      const response = await axios.post('http://localhost:8000/train/terminate');
+      setSnackbar({ open: true, message: response.data.message, severity: 'success' });
+    } catch (error) {
+      let message = 'Failed to send termination signal.';
+      if (axios.isAxiosError(error) && error.response) {
+        message = error.response.data.detail || error.response.data.message || message;
+      }
+      setSnackbar({ open: true, message, severity: 'error' });
+    }
+  };
+
   const isTrainingActive = trainingStatus.status !== 'idle' && trainingStatus.status !== 'completed' && trainingStatus.status !== 'failed';
 
   return (
@@ -174,9 +187,15 @@ const TrainingPage: React.FC = () => {
           </Grid>
 
           <Box sx={{ mt: 4, textAlign: 'center' }}>
-            <Button variant="contained" color="primary" size="large" onClick={handleStartTraining} disabled={isProcessing}>
-              {isProcessing ? <CircularProgress size={24} color="inherit" /> : 'Start Training'}
-            </Button>
+            {!isTrainingActive ? (
+              <Button variant="contained" color="primary" size="large" onClick={handleStartTraining} disabled={isProcessing}>
+                {isProcessing ? <CircularProgress size={24} color="inherit" /> : 'Start Training'}
+              </Button>
+            ) : (
+              <Button variant="contained" color="error" size="large" onClick={handleCancelTraining} disabled={!isTrainingActive}>
+                Cancel Training
+              </Button>
+            )}
           </Box>
         </CardContent>
       </Card>

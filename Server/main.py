@@ -16,7 +16,8 @@ app = FastAPI()
 training_status = {
     "status": "idle", # idle, initializing, loading_models, training, completed, failed
     "progress": 0,    # 0-100
-    "message": "Server is ready."
+    "message": "Server is ready.",
+    "should_stop": False,
 }
 
 # --- CORS Middleware ---
@@ -90,14 +91,24 @@ async def trigger_training(
         gradient_checkpointing=True, # Good for memory saving
         lr_scheduler="constant",
         report_to="tensorboard", # Will create local logs
-        mixed_precision="no", # Required for MPS
+         mixed_precision="no", # Required for MPS
     )
 
     # Reset status and add the training function to background tasks
-    training_status.update({"status": "initializing", "progress": 0, "message": "Request received..."})
+    training_status.update({"status": "initializing", "progress": 0, "message": "Request received...", "should_stop": False})
     background_tasks.add_task(run_lora_training, config=training_config, status_updater=training_status)
 
     return {
         "status": "success",
         "message": f"Training started in the background. Model will be saved to '{output_dir}'.",
     }
+
+@app.post("/train/terminate")
+def terminate_training():
+    """Endpoint to signal the training process to stop."""
+    if training_status["status"] in ["training", "initializing", "loading_models"]:
+        training_status["should_stop"] = True
+        training_status["message"] = "Termination signal received. Finishing current step..."
+        return {"status": "success", "message": "Termination signal sent."}
+    else:
+        return {"status": "error", "message": "No active training to terminate."}

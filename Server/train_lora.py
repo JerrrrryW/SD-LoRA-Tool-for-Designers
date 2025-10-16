@@ -330,12 +330,22 @@ def start_training(config: TrainingConfig, status_updater: Optional[dict] = None
             status_updater.update({"status": "training", "progress": 10, "message": "Starting training loop..."})
 
         global_step = 0
+        terminated = False # Flag to indicate if training was stopped early
+
         progress_bar = tqdm(range(global_step, config.max_train_steps), disable=not accelerator.is_local_main_process)
         progress_bar.set_description("Steps")
 
         for epoch in range(num_train_epochs):
             unet.train()
             for step, batch in enumerate(train_dataloader):
+                # Check for termination signal
+                if status_updater and status_updater.get("should_stop", False):
+                    terminated = True
+                    logger.warning("Termination signal received. Stopping training.")
+                    if status_updater:
+                        status_updater.update({"status": "failed", "progress": status_updater.get("progress", 0), "message": "Training was cancelled by the user."})
+                    break # Exit the inner loop
+
                 with accelerator.accumulate(unet):
                     # ... (core training step logic)
                     pixel_values = batch["pixel_values"].to(dtype=weight_dtype)
@@ -393,10 +403,14 @@ def start_training(config: TrainingConfig, status_updater: Optional[dict] = None
 
                 if global_step >= config.max_train_steps:
                     break
+            
+            if terminated:
+                break # Exit the outer loop
 
         accelerator.wait_for_everyone()
 
-        if accelerator.is_main_process:
+        # Save the model only if training completed successfully
+        if accelerator.is_main_process and not terminated:
             unet = accelerator.unwrap_model(unet)
             unet_lora_state_dict = convert_state_dict_to_diffusers(get_peft_model_state_dict(unet))
             
@@ -409,7 +423,7 @@ def start_training(config: TrainingConfig, status_updater: Optional[dict] = None
 
         accelerator.end_training()
         
-        if status_updater:
+        if status_updater and not terminated:
             status_updater.update({"status": "completed", "progress": 100, "message": f"Training complete! Model saved to {config.output_dir}"})
 
     except Exception as e:
