@@ -14,11 +14,13 @@ import {
   CircularProgress,
   Snackbar,
   Alert,
-  LinearProgress, // Import LinearProgress
+  LinearProgress,
+  Tooltip, // Import Tooltip
+  IconButton,
 } from '@mui/material';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline'; // Import help icon
 import PhotoCamera from '@mui/icons-material/PhotoCamera';
 
-// Define the structure of the training status
 interface TrainingStatus {
   status: 'idle' | 'initializing' | 'loading_models' | 'training' | 'completed' | 'failed';
   progress: number;
@@ -32,14 +34,16 @@ const TrainingPage: React.FC = () => {
   const [instancePrompt, setInstancePrompt] = useState('');
   const [steps, setSteps] = useState<number>(500);
   const [learningRate, setLearningRate] = useState<number>(1e-4);
+  const [resolution, setResolution] = useState<number>(512); // New state
+  const [trainBatchSize, setTrainBatchSize] = useState<number>(1); // New state
 
   // UI and Status state
-  const [isProcessing, setIsProcessing] = useState(false); // General busy state
+  const [isProcessing, setIsProcessing] = useState(false);
   const [trainingStatus, setTrainingStatus] = useState<TrainingStatus>({ status: 'idle', progress: 0, message: '' });
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' } | null>(null);
   const pollingInterval = useRef<NodeJS.Timeout | null>(null);
 
-  // Effect for polling the status endpoint
+  // Polling effect
   useEffect(() => {
     const pollStatus = async () => {
       try {
@@ -60,16 +64,16 @@ const TrainingPage: React.FC = () => {
       }
     };
 
-    if (isProcessing) {
-      pollingInterval.current = setInterval(pollStatus, 2000); // Poll every 2 seconds
+    if (isProcessing && (trainingStatus.status === 'initializing' || trainingStatus.status === 'loading_models' || trainingStatus.status === 'training')) {
+        pollingInterval.current = setInterval(pollStatus, 2000);
+    } else {
+        if (pollingInterval.current) clearInterval(pollingInterval.current);
     }
 
     return () => {
-      if (pollingInterval.current) {
-        clearInterval(pollingInterval.current);
-      }
+      if (pollingInterval.current) clearInterval(pollingInterval.current);
     };
-  }, [isProcessing]);
+  }, [isProcessing, trainingStatus.status]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setFiles(event.target.files);
@@ -90,11 +94,12 @@ const TrainingPage: React.FC = () => {
     formData.append('instancePrompt', instancePrompt);
     formData.append('steps', steps.toString());
     formData.append('learningRate', learningRate.toString());
+    formData.append('resolution', resolution.toString()); // Append new param
+    formData.append('trainBatchSize', trainBatchSize.toString()); // Append new param
 
     try {
       const response = await axios.post('http://localhost:8000/train', formData);
       setSnackbar({ open: true, message: response.data.message, severity: 'success' });
-      // Polling will start automatically via the useEffect hook
     } catch (error) {
       let message = 'An unknown error occurred.';
       if (axios.isAxiosError(error) && error.response) {
@@ -115,7 +120,6 @@ const TrainingPage: React.FC = () => {
             LoRA Model Training
           </Typography>
 
-          {/* Status Display */}
           {isTrainingActive && (
             <Box sx={{ mb: 4 }}>
               <Typography variant="h6" gutterBottom>{trainingStatus.message}</Typography>
@@ -141,10 +145,31 @@ const TrainingPage: React.FC = () => {
               <Typography variant="h6" gutterBottom>2. Set Parameters</Typography>
               <TextField fullWidth label="Base Model ID" variant="outlined" sx={{ mb: 2 }} value={baseModel} onChange={(e) => setBaseModel(e.target.value)} disabled={isProcessing} />
               <TextField fullWidth label="Instance Prompt (e.g., 'a photo of sks dog')" variant="outlined" sx={{ mb: 2 }} value={instancePrompt} onChange={(e) => setInstancePrompt(e.target.value)} disabled={isProcessing} />
+              
               <Typography gutterBottom>Training Steps ({steps})</Typography>
               <Slider value={steps} onChange={(_, newValue) => setSteps(newValue as number)} aria-label="Training Steps" valueLabelDisplay="auto" step={100} marks min={100} max={2000} disabled={isProcessing} />
+              
               <Typography gutterBottom>Learning Rate ({learningRate.toExponential(1)})</Typography>
               <Slider value={learningRate} onChange={(_, newValue) => setLearningRate(newValue as number)} aria-label="Learning Rate" valueLabelDisplay="auto" step={1e-5} min={1e-5} max={1e-3} scale={(x) => x} disabled={isProcessing} />
+
+              {/* New Resolution Slider */}
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <Typography gutterBottom>Resolution ({resolution}px)</Typography>
+                <Tooltip title="设置训练时图片处理的尺寸。更大的分辨率可以保留更多细节，但会显著增加训练时间和显存消耗。建议与您使用的基础模型的常用尺寸保持一致（例如v1.5为512px）。">
+                  <IconButton size="small"><HelpOutlineIcon fontSize="small" /></IconButton>
+                </Tooltip>
+              </Box>
+              <Slider value={resolution} onChange={(_, newValue) => setResolution(newValue as number)} aria-label="Resolution" valueLabelDisplay="auto" step={128} marks min={512} max={1024} disabled={isProcessing} />
+
+              {/* New Batch Size Slider */}
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <Typography gutterBottom>Batch Size ({trainBatchSize})</Typography>
+                <Tooltip title="每次让模型同时“看”几张图片。在显存有限的Mac上，建议保持为1。增加此值会加快训练，但会急剧增加显存消耗，可能导致训练失败。">
+                  <IconButton size="small"><HelpOutlineIcon fontSize="small" /></IconButton>
+                </Tooltip>
+              </Box>
+              <Slider value={trainBatchSize} onChange={(_, newValue) => setTrainBatchSize(newValue as number)} aria-label="Batch Size" valueLabelDisplay="auto" step={4} marks min={1} max={8} disabled={isProcessing} />
+
             </Grid>
           </Grid>
 

@@ -1,0 +1,18 @@
+# Python build artifacts and virtual environments
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+
+# IDE and OS files
+.vscode/
+.idea/
+.DS_Store
+
+# Local instance folders
+.env
+
+# Application Specific - LoRA training outputs and temporary files
+/lora_models/
+/temp_training_images/

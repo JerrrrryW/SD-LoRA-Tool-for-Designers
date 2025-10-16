@@ -55,6 +55,8 @@ async def trigger_training(
     instancePrompt: str = Form(...),
     steps: int = Form(...),
     learningRate: float = Form(...),
+    resolution: int = Form(...),
+    trainBatchSize: int = Form(...),
 ):
     if training_status["status"] == "training":
         return {"status": "error", "message": "A training job is already in progress."}
@@ -81,6 +83,14 @@ async def trigger_training(
         instance_prompt=instancePrompt,
         max_train_steps=steps,
         learning_rate=learningRate,
+        resolution=resolution,
+        train_batch_size=trainBatchSize,
+        # Using some sensible defaults for other params
+        gradient_accumulation_steps=1,
+        gradient_checkpointing=True, # Good for memory saving
+        lr_scheduler="constant",
+        report_to="tensorboard", # Will create local logs
+        mixed_precision="no", # Required for MPS
     )
 
     # Reset status and add the training function to background tasks
