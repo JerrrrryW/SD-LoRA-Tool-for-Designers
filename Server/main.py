@@ -1,5 +1,5 @@
 from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse, JSONResponse
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 import torch
@@ -42,49 +42,235 @@ class GenerateRequest(BaseModel):
 
 
 
+
+
+
 # --- API Endpoints ---
 @app.get("/")
 def read_root():
     return {"message": "Backend server is running."}
 
-@app.post("/generate")
-async def generate_image(req: GenerateRequest):
-    """Generates an image using Stable Diffusion based on a prompt."""
+import json
+
+async def generate_image_stream(req: GenerateRequest):
+    """Generates an image and streams progress updates."""
+    # Callback function to update progress
+    def progress_callback(step: int, timestep: float, latents: torch.FloatTensor):
+        progress = step / 50 * 100
+        # Yield progress update as a JSON string
+        yield f"data: {json.dumps({'status': 'processing', 'step': step, 'total_steps': 50, 'progress': progress})}\n\n"
+
     try:
-        # Load the pipeline only once on startup to save time.
-        # In a production app, you might have a dedicated model-serving microservice.
         pipe = DiffusionPipeline.from_pretrained(
             "runwayml/stable-diffusion-v1-5",
             torch_dtype=torch.float16,
             use_safetensors=True,
         )
-        # Move the pipeline to the MPS device for GPU acceleration
         if torch.backends.mps.is_available():
             pipe = pipe.to("mps")
 
-        # Generate the image
+        # Generate the image with the callback
         image = pipe(
             prompt=req.prompt,
             negative_prompt=req.negative_prompt,
-            num_inference_steps=50, # A reasonable default
-            guidance_scale=7.5,   # A reasonable default
+            num_inference_steps=50,
+            guidance_scale=7.5,
+            callback_on_step_end=progress_callback,
         ).images[0]
 
         # Save the image to a byte stream
         img_byte_arr = io.BytesIO()
         image.save(img_byte_arr, format='PNG')
         img_byte_arr.seek(0)
-
-        return StreamingResponse(img_byte_arr, media_type="image/png")
+        
+        # Yield the final image
+        yield f"data: {json.dumps({'status': 'completed', 'image': img_byte_arr.read().hex()})}\n\n"
 
     except Exception as e:
         print(f"Error during image generation: {e}")
-        return {"status": "error", "message": "Failed to generate image."}
+        yield f"data: {json.dumps({'status': 'error', 'message': 'Failed to generate image.'})}\n\n"
     finally:
-        # Release the resources used by the model
         if 'pipe' in locals():
             del pipe
             torch.cuda.empty_cache()
+
+import uuid
+
+inference_status = {
+    "status": "idle", # idle, loading, processing, completed, failed
+    "progress": 0,
+    "step": 0,
+    "total_steps": 50,
+    "message": "Ready for inference.",
+    "image_id": None,
+}
+
+# In-memory store for generated images
+# In a real app, you might use a temporary file store or a cache like Redis
+generated_images = {}
+
+def run_inference_task(req: GenerateRequest):
+    """The actual long-running task for generating an image."""
+    inference_status.update({
+        "status": "loading",
+        "progress": 0,
+        "step": 0,
+        "message": "Loading Stable Diffusion model...",
+        "image_id": None,
+    })
+
+    def progress_callback(pipe, step, timestep, callback_kwargs):
+        inference_status.update({
+            "status": "processing",
+            "step": step,
+            "progress": (step / inference_status["total_steps"]) * 100,
+            "message": f"Inference in progress... Step {step}/{inference_status['total_steps']}",
+        })
+        return callback_kwargs
+
+    pipe = None
+    try:
+        pipe = DiffusionPipeline.from_pretrained(
+            "runwayml/stable-diffusion-v1-5",
+            torch_dtype=torch.float16,
+            use_safetensors=True,
+        )
+        if torch.backends.mps.is_available():
+            pipe = pipe.to("mps")
+
+        inference_status["status"] = "processing"
+        image = pipe(
+            prompt=req.prompt,
+            negative_prompt=req.negative_prompt,
+            num_inference_steps=inference_status["total_steps"],
+            guidance_scale=7.5,
+            callback_on_step_end=progress_callback,
+        ).images[0]
+
+        img_byte_arr = io.BytesIO()
+        image.save(img_byte_arr, format='PNG')
+        
+        image_id = str(uuid.uuid4())
+        generated_images[image_id] = img_byte_arr.getvalue()
+
+        inference_status.update({
+            "status": "completed",
+            "progress": 100,
+            "message": "Image generation complete.",
+            "image_id": image_id,
+        })
+
+    except Exception as e:
+        print(f"Error during image generation: {e}")
+        inference_status.update({"status": "failed", "message": str(e)})
+    finally:
+        if pipe is not None:
+            del pipe
+            torch.cuda.empty_cache()
+
+@app.post("/generate")
+async def start_generation(req: GenerateRequest, background_tasks: BackgroundTasks):
+    if inference_status["status"] in ["loading", "processing"]:
+        return {"status": "error", "message": "An inference job is already in progress."}
+    
+    background_tasks.add_task(run_inference_task, req)
+    return {"status": "success", "message": "Image generation started in the background."}
+
+@app.get("/generate/status")
+def get_inference_status():
+    return inference_status
+
+@app.get("/models")
+def get_lora_models():
+    models_dir = "lora_models"
+    if not os.path.exists(models_dir):
+        return []
+
+    model_folders = [d for d in os.listdir(models_dir) if os.path.isdir(os.path.join(models_dir, d))]
+    
+    models_info = []
+    for folder in model_folders:
+        folder_path = os.path.join(models_dir, folder)
+        # Check if the directory is empty and delete it if so
+        if not os.listdir(folder_path):
+            print(f"Found and deleting empty model directory: {folder_path}")
+            try:
+                shutil.rmtree(folder_path)
+            except OSError as e:
+                print(f"Error deleting empty directory {folder_path}: {e}")
+            continue
+
+        try:
+            # Example folder name: lora-models/sks_dog-20251017-103000
+            parts = folder.split('-')
+            prompt = parts[0].replace('_', ' ')
+            date = parts[1]
+            time = parts[2]
+            creation_time = datetime.strptime(f"{date}-{time}", "%Y%m%d-%H%M%S").isoformat()
+
+            models_info.append({
+                "name": folder,
+                "prompt": prompt,
+                "creation_time": creation_time,
+            })
+        except (IndexError, ValueError) as e:
+            # Skip folders with unexpected naming conventions
+            print(f"Could not parse model folder '{folder}': {e}")
+            continue
+            
+    # Sort models by creation time, newest first
+    models_info.sort(key=lambda x: x["creation_time"], reverse=True)
+    
+    return models_info
+
+@app.get("/models/download/{model_name}")
+def download_lora_model(model_name: str):
+    models_dir = "lora_models"
+    model_path = os.path.join(models_dir, model_name)
+
+    if not os.path.isdir(model_path):
+        return JSONResponse(status_code=404, content={"message": "Model not found."})
+
+    # Check if the directory is empty
+    if not os.listdir(model_path):
+        print(f"Attempted to download an empty model directory. Deleting it: {model_path}")
+        try:
+            shutil.rmtree(model_path)
+        except OSError as e:
+            print(f"Error deleting empty directory {model_path}: {e}")
+        return JSONResponse(status_code=404, content={"message": "Model is empty and has been deleted. Please refresh the model list."})
+
+    # Create a zip archive of the model directory
+    shutil.make_archive(model_name, 'zip', model_path)
+
+    return FileResponse(f"{model_name}.zip", media_type='application/zip', filename=f"{model_name}.zip")
+
+@app.delete("/models/delete/{model_name}")
+def delete_lora_model(model_name: str):
+    models_dir = "lora_models"
+    model_path = os.path.join(models_dir, model_name)
+
+    if not os.path.isdir(model_path):
+        return {"status": "error", "message": "Model not found."}
+
+    try:
+        shutil.rmtree(model_path)
+        return {"status": "success", "message": f"Model '{model_name}' deleted successfully."}
+    except Exception as e:
+        return {"status": "error", "message": f"Failed to delete model: {e}"}
+
+
+@app.get("/generate/image/{image_id}")
+def get_generated_image(image_id: str):
+    image_data = generated_images.get(image_id)
+    if not image_data:
+        return {"status": "error", "message": "Image not found."}
+    
+    # Clean up the image from memory after it's been fetched once
+    # del generated_images[image_id]
+    
+    return StreamingResponse(io.BytesIO(image_data), media_type="image/png")
+
 @app.get("/check-mps")
 def check_mps():
     # ... (omitting unchanged endpoint for brevity)

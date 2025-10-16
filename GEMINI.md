@@ -1,21 +1,26 @@
-# GEMINI Project Context: LoRA Training Platform
+# GEMINI Project Context: LoRA Training and Inference Platform
 
 ## Project Overview
 
-This project is a web-based platform for locally training LoRA (Low-Rank Adaptation) models for Stable Diffusion on Apple Silicon (M-series) Macs. It provides a simple, designer-friendly user interface to upload images, configure training parameters, and run the training process without needing to use the command line directly.
+This project is a web-based platform for locally training LoRA (Low-Rank Adaptation) models and running Stable Diffusion inference on Apple Silicon (M-series) Macs. It provides a simple, designer-friendly user interface for two main tasks:
+
+1.  **LoRA Training**: Upload images, configure training parameters, and run the training process without needing to use the command line directly.
+2.  **Stable Diffusion Inference**: A simple interface to generate images from text prompts using a base Stable Diffusion model.
 
 ### Architecture
 
 The application uses a client-server architecture:
 
--   **Frontend**: A single-page application built with **React (using Vite)** and **TypeScript**. It uses **Material-UI (MUI)** for its component library. The frontend allows users to upload training images, set parameters like the base model and learning rate, and monitor the training status.
+-   **Frontend**: A single-page application built with **React (using Vite)** and **TypeScript**. It uses **Material-UI (MUI)** for its component library and **React Router** for navigation. The frontend now consists of two main pages: a training page and an inference page, wrapped in a consistent layout with a sidebar.
 
--   **Backend**: A Python server built with **FastAPI**. It exposes a REST API to the frontend. The core training logic is handled by a modified version of the Hugging Face `diffusers` library's standard LoRA training script. Training is run as a **background task** to prevent HTTP timeouts, and the status is exposed via a separate polling endpoint.
+-   **Backend**: A Python server built with **FastAPI**. It exposes a REST API to the frontend. 
+    -   The core training logic is handled by a modified version of the Hugging Face `diffusers` library's standard LoRA training script. Training is run as a **background task** to prevent HTTP timeouts.
+    -   The inference logic uses the `diffusers` library to generate images from prompts. The Stable Diffusion model is loaded **on-demand** for each inference request to conserve memory for the training process, and released immediately after.
 
 ### Core Technologies
 
--   **Frontend**: React, Vite, TypeScript, Material-UI, Axios
--   **Backend**: Python, FastAPI, PyTorch (with MPS for GPU acceleration), `diffusers`, `peft`, `accelerate`
+-   **Frontend**: React, Vite, TypeScript, Material-UI, Axios, React Router
+-   **Backend**: Python, FastAPI, PyTorch (with MPS for GPU acceleration), `diffusers`, `peft`, `accelerate`, `transformers`
 
 ---
 
@@ -29,11 +34,10 @@ The backend relies on a specific Conda environment and a set of Python packages.
 
 -   **Environment**: A Conda environment named `aigc` is required.
 
--   **Key Dependencies**:
-    -   `fastapi`, `uvicorn`
-    -   `torch`, `torchvision`
-    -   `diffusers` (installed from source)
-    -   `peft`, `accelerate`, `transformers`
+-   **Dependencies**: All Python dependencies are listed in `requirements.txt`. You can install them with:
+    ```bash
+    pip install -r requirements.txt
+    ```
 
 -   **Running the Server**:
     From the project root directory (`AIGC-Training`), run the following command:
@@ -68,15 +72,16 @@ The frontend is a standard Vite-based React application.
 
 -   **Backend API**:
     -   The main FastAPI application is in `Server/main.py`.
-    -   Long-running tasks like AI model training are executed in background threads using `BackgroundTasks` to keep the API responsive.
-    -   A simple in-memory dictionary (`training_status`) is used for state management of the training job. This is suitable for a local, single-user application.
-    -   The core training logic resides in `Server/train_lora.py`, which is a refactored version of a standard Hugging Face training script.
+    -   Long-running tasks like AI model training are executed in background threads using `BackgroundTasks`.
+    -   A new `/generate` endpoint has been added for Stable Diffusion inference. It loads the model on-demand and releases it after use to conserve memory.
+    -   The core training logic resides in `Server/train_lora.py`.
 
 -   **Frontend UI**:
-    -   The main application component is `frontend/src/App.tsx`.
-    -   The primary UI is located in `frontend/src/components/TrainingPage.tsx`.
+    -   The main application component is `frontend/src/App.tsx`, which now includes routing.
+    -   A new `Layout.tsx` component provides a consistent sidebar and app bar for all pages.
+    -   The training UI is in `frontend/src/components/TrainingPage.tsx`.
+    -   A new inference UI has been added in `frontend/src/components/InferencePage.tsx`.
     -   The application communicates with the backend via REST API calls using `axios`.
-    -   It uses `setInterval` to poll the `/train/status` endpoint for real-time progress updates during training.
 
 -   **Model & Data Storage**:
     -   Images uploaded for training are temporarily stored in the `temp_training_images` directory.

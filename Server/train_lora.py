@@ -431,6 +431,17 @@ def start_training(config: TrainingConfig, status_updater: Optional[dict] = None
         if status_updater:
             status_updater.update({"status": "failed", "progress": 0, "message": str(e)})
     finally:
+        # Check if training was successful. If not, and the output dir is empty, clean it up.
+        is_successful = status_updater and status_updater.get("status") == "completed"
+        if not is_successful and os.path.exists(config.output_dir):
+            # Check if the directory is empty
+            if not os.listdir(config.output_dir):
+                logger.info(f"Training was not successful. Deleting empty output directory: {config.output_dir}")
+                try:
+                    shutil.rmtree(config.output_dir)
+                except OSError as e:
+                    logger.error(f"Error deleting directory {config.output_dir}: {e}")
+
         # Cleanup
         del unet, text_encoder, vae, optimizer, train_dataloader, lr_scheduler, accelerator
         free_memory()

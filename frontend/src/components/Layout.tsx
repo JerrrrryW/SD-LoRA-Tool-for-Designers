@@ -17,6 +17,7 @@ import MenuIcon from '@mui/icons-material/Menu';
 import ModelTrainingIcon from '@mui/icons-material/ModelTraining';
 import { Link } from 'react-router-dom';
 import ImagesearchRollerIcon from '@mui/icons-material/ImagesearchRoller';
+import StorageIcon from '@mui/icons-material/Storage';
 
 const drawerWidth = 240;
 
@@ -47,6 +48,12 @@ const drawer = (
           </ListItemIcon>
           <ListItemText primary="SD Inference" />
         </ListItem>
+        <ListItem button component={Link} to="/models" key="models">
+          <ListItemIcon>
+            <StorageIcon />
+          </ListItemIcon>
+          <ListItemText primary="Trained Models" />
+        </ListItem>
         {/* Future pages can be added here */}
       </List>
     </div>
@@ -72,7 +79,7 @@ const drawer = (
             <MenuIcon />
           </IconButton>
           <Typography variant="h6" noWrap component="div">
-            Gemini LoRA Training
+            DHUX AIGC Center
           </Typography>
         </Toolbar>
       </AppBar>

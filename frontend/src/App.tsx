@@ -18,6 +18,8 @@ const theme = createTheme({
   },
 });
 
+import ModelsPage from './components/ModelsPage';
+
 function App() {
   return (
     <ThemeProvider theme={theme}>
@@ -26,6 +28,7 @@ function App() {
           <Routes>
             <Route path="/" element={<TrainingPage />} />
             <Route path="/inference" element={<InferencePage />} />
+            <Route path="/models" element={<ModelsPage />} />
           </Routes>
         </Layout>
       </Router>

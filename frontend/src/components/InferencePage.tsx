@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import {
   Container,
@@ -13,14 +13,70 @@ import {
   Snackbar,
   Alert,
   Paper,
+  LinearProgress, // Import LinearProgress
 } from '@mui/material';
+
+interface InferenceStatus {
+  status: 'idle' | 'loading' | 'processing' | 'completed' | 'failed';
+  progress: number;
+  step: number;
+  total_steps: number;
+  message: string;
+  image_id: string | null;
+}
 
 const InferencePage: React.FC = () => {
   const [prompt, setPrompt] = useState('');
   const [negativePrompt, setNegativePrompt] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [status, setStatus] = useState<InferenceStatus>({ 
+    status: 'idle', 
+    progress: 0, 
+    step: 0, 
+    total_steps: 50, 
+    message: '', 
+    image_id: null 
+  });
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' } | null>(null);
+  const pollingInterval = useRef<NodeJS.Timeout | null>(null);
+
+  // Effect for polling
+  useEffect(() => {
+    const pollStatus = async () => {
+      try {
+        const response = await axios.get('http://localhost:8000/generate/status');
+        const newStatus: InferenceStatus = response.data;
+        setStatus(newStatus);
+
+        if (newStatus.status === 'completed') {
+          if (pollingInterval.current) clearInterval(pollingInterval.current);
+          setIsProcessing(false);
+          setGeneratedImage(`http://localhost:8000/generate/image/${newStatus.image_id}`);
+          setSnackbar({ open: true, message: 'Image generated successfully!', severity: 'success' });
+        } else if (newStatus.status === 'failed') {
+          if (pollingInterval.current) clearInterval(pollingInterval.current);
+          setIsProcessing(false);
+          setSnackbar({ open: true, message: newStatus.message, severity: 'error' });
+        }
+      } catch (error) {
+        console.error("Failed to poll status:", error);
+        if (pollingInterval.current) clearInterval(pollingInterval.current);
+        setIsProcessing(false);
+      }
+    };
+
+    if (isProcessing) {
+      pollingInterval.current = setInterval(pollStatus, 1500);
+    } else {
+      if (pollingInterval.current) clearInterval(pollingInterval.current);
+    }
+
+    return () => {
+      if (pollingInterval.current) clearInterval(pollingInterval.current);
+    };
+  }, [isProcessing]);
+
 
   const handleGenerateImage = async () => {
     if (!prompt) {
@@ -28,49 +84,26 @@ const InferencePage: React.FC = () => {
       return;
     }
 
-    setIsGenerating(true);
+    setIsProcessing(true);
     setGeneratedImage(null);
+    setStatus({ ...status, status: 'loading', message: 'Sending request to server...' });
 
     try {
-      const response = await axios.post(
-        'http://localhost:8000/generate',
-        {
-          prompt,
-          negative_prompt: negativePrompt,
-        },
-        {
-          responseType: 'blob',
-        }
-      );
-
-      const imageUrl = URL.createObjectURL(response.data);
-      setGeneratedImage(imageUrl);
-      setSnackbar({ open: true, message: 'Image generated successfully!', severity: 'success' });
-    } catch (error) {      
+      await axios.post('http://localhost:8000/generate', {
+        prompt,
+        negative_prompt: negativePrompt,
+      });
+    } catch (error) {
       let message = 'An unknown error occurred.';
       if (axios.isAxiosError(error) && error.response) {
-        // Since the response is a blob, we need to read it as text
-        const reader = new FileReader();
-        reader.onload = () => {
-          try {
-            const errorData = JSON.parse(reader.result as string);
-            message = errorData.detail || 'Failed to generate image.';
-          } catch (e) {
-            message = 'Failed to parse error response.';
-          }
-          setSnackbar({ open: true, message, severity: 'error' });
-        };
-        reader.onerror = () => {
-          setSnackbar({ open: true, message: 'Failed to read error response.', severity: 'error' });
-        };
-        reader.readAsText(error.response.data);
-      } else {
-        setSnackbar({ open: true, message, severity: 'error' });
+        message = error.response.data.detail || error.response.data.message || message;
       }
-    } finally {
-      setIsGenerating(false);
+      setSnackbar({ open: true, message, severity: 'error' });
+      setIsProcessing(false);
     }
   };
+
+  const isTaskActive = status.status === 'loading' || status.status === 'processing';
 
   return (
     <Container maxWidth="lg">
@@ -80,6 +113,13 @@ const InferencePage: React.FC = () => {
             Stable Diffusion Inference
           </Typography>
 
+          {isTaskActive && (
+            <Box sx={{ mb: 4 }}>
+              <Typography variant="h6" gutterBottom>{status.message}</Typography>
+              <LinearProgress variant="determinate" value={status.progress} />
+            </Box>
+          )}
+
           <Box sx={{ mt: 3 }}>
             <TextField
               fullWidth
@@ -87,7 +127,7 @@ const InferencePage: React.FC = () => {
               variant="outlined"
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              disabled={isGenerating}
+              disabled={isProcessing}
               multiline
               rows={3}
             />
@@ -100,7 +140,7 @@ const InferencePage: React.FC = () => {
               variant="outlined"
               value={negativePrompt}
               onChange={(e) => setNegativePrompt(e.target.value)}
-              disabled={isGenerating}
+              disabled={isProcessing}
               multiline
               rows={2}
             />
@@ -112,9 +152,9 @@ const InferencePage: React.FC = () => {
               color="primary"
               size="large"
               onClick={handleGenerateImage}
-              disabled={isGenerating}
+              disabled={isProcessing}
             >
-              {isGenerating ? <CircularProgress size={24} color="inherit" /> : 'Generate Image'}
+              {isProcessing ? <CircularProgress size={24} color="inherit" /> : 'Generate Image'}
             </Button>
           </Box>
 
