@@ -7,6 +7,7 @@ import {
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import DeleteIcon from '@mui/icons-material/Delete';
+import { useTranslation } from 'react-i18next';
 
 interface TrainingStatus {
   status: 'idle' | 'initializing' | 'loading_models' | 'training' | 'completed' | 'failed';
@@ -15,6 +16,7 @@ interface TrainingStatus {
 }
 
 const TrainingPage: React.FC = () => {
+  const { t } = useTranslation();
   // Form state
   const [files, setFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
@@ -68,7 +70,7 @@ const TrainingPage: React.FC = () => {
           setSnackbar({ open: true, message: newStatus.message, severity: severity });
         }
       } catch (error) {
-        console.error("Failed to poll status:", error);
+        console.error(t('trainingPage.pollStatusFailed'), error);
         if (pollingInterval.current) clearInterval(pollingInterval.current);
         setIsProcessing(false);
       }
@@ -83,16 +85,16 @@ const TrainingPage: React.FC = () => {
     return () => {
       if (pollingInterval.current) clearInterval(pollingInterval.current);
     };
-  }, [isProcessing, trainingStatus.status]);
+  }, [isProcessing, trainingStatus.status, t]);
 
   const handleStartTraining = async () => {
     if (files.length === 0) {
-      setSnackbar({ open: true, message: 'Please select images first.', severity: 'error' });
+      setSnackbar({ open: true, message: t('trainingPage.selectImagesFirst'), severity: 'error' });
       return;
     }
 
     setIsProcessing(true);
-    setTrainingStatus({ status: 'initializing', progress: 0, message: 'Sending request...' });
+    setTrainingStatus({ status: 'initializing', progress: 0, message: t('trainingPage.sendingRequest') });
 
     const formData = new FormData();
     files.forEach(file => formData.append('images', file));
@@ -108,7 +110,7 @@ const TrainingPage: React.FC = () => {
       const response = await axios.post('http://localhost:8000/train', formData);
       setSnackbar({ open: true, message: response.data.message, severity: 'success' });
     } catch (error) {
-      let message = 'An unknown error occurred.';
+      let message = t('trainingPage.unknownError');
       if (axios.isAxiosError(error) && error.response) {
         message = error.response.data.detail || error.response.data.message || message;
       }
@@ -122,7 +124,7 @@ const TrainingPage: React.FC = () => {
       const response = await axios.post('http://localhost:8000/train/terminate');
       setSnackbar({ open: true, message: response.data.message, severity: 'success' });
     } catch (error) {
-      let message = 'Failed to send termination signal.';
+      let message = t('trainingPage.terminationSignalFailed');
       if (axios.isAxiosError(error) && error.response) {
         message = error.response.data.detail || error.response.data.message || message;
       }
@@ -135,7 +137,7 @@ const TrainingPage: React.FC = () => {
   return (
     <Container maxWidth={false} sx={{ mt: 4, mb: 4 }}>
       <Typography variant="h4" component="h1" gutterBottom>
-        LoRA Model Training
+        {t('trainingPage.title')}
       </Typography>
 
       {isTrainingActive && (
@@ -151,7 +153,7 @@ const TrainingPage: React.FC = () => {
         <Grid item xs={12} md={5}>
           <Card sx={{ maxWidth: '500px' }}>
             <CardContent>
-              <Typography variant="h2" gutterBottom>1. Upload Images</Typography>
+              <Typography variant="h2" gutterBottom>{t('trainingPage.uploadTitle')}</Typography>
               <Box
                 sx={{
                   border: '2px dashed grey',
@@ -174,7 +176,7 @@ const TrainingPage: React.FC = () => {
                   onChange={(e) => handleFileChange(Array.from(e.target.files || []))}
                 />
                 <UploadFileIcon sx={{ fontSize: 48, color: 'grey.500' }} />
-                <Typography>Drag & drop images here, or click to select files</Typography>
+                <Typography>{t('trainingPage.uploadArea')}</Typography>
               </Box>
               {imagePreviews.length > 0 && (
                 <Box sx={{ 
@@ -203,51 +205,45 @@ const TrainingPage: React.FC = () => {
         <Grid item xs={12} md={7}>
           <Card>
             <CardContent>
-              <Typography variant="h2" gutterBottom>2. Set Parameters</Typography>
+              <Typography variant="h2" gutterBottom>{t('trainingPage.paramsTitle')}</Typography>
               <FormControl fullWidth sx={{ mb: 2 }}>
-                <InputLabel>Base Model ID</InputLabel>
-                <Select value={baseModel} label="Base Model ID" onChange={(e) => setBaseModel(e.target.value)} disabled={isProcessing}>
+                <InputLabel>{t('trainingPage.baseModel')}</InputLabel>
+                <Select value={baseModel} label={t('trainingPage.baseModel')} onChange={(e) => setBaseModel(e.target.value)} disabled={isProcessing}>
                   <MenuItem value="runwayml/stable-diffusion-v1-5">runwayml/stable-diffusion-v1-5</MenuItem>
                   {/* Add other models here if available */}
                 </Select>
               </FormControl>
-              <TextField fullWidth label="Model Name (e.g., 'MyDog')" variant="outlined" sx={{ mb: 2 }} value={modelName} onChange={(e) => setModelName(e.target.value)} disabled={isProcessing} />
-              <TextField fullWidth label="Instance Prompt (e.g., 'a photo of sks dog')" variant="outlined" sx={{ mb: 2 }} value={instancePrompt} onChange={(e) => setInstancePrompt(e.target.value)} disabled={isProcessing} />
+              <TextField fullWidth label={t('trainingPage.modelName')} variant="outlined" sx={{ mb: 2 }} value={modelName} onChange={(e) => setModelName(e.target.value)} disabled={isProcessing} />
+              <TextField fullWidth label={t('trainingPage.instancePrompt')} variant="outlined" sx={{ mb: 2 }} value={instancePrompt} onChange={(e) => setInstancePrompt(e.target.value)} disabled={isProcessing} />
               
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <Tooltip title="Sets the number of training steps. More steps can lead to better results but take longer to train.">
-                  <IconButton size="small"><HelpOutlineIcon fontSize="small" /></IconButton>
-                </Tooltip>
-                <Typography sx={{ flexShrink: 0, mr: 2 }}>Training Steps</Typography>
+                <Typography sx={{ flexShrink: 0, mr: 2 }}>{t('trainingPage.trainingSteps')}</Typography>
                 <Slider value={steps} onChange={(_, newValue) => setSteps(newValue as number)} aria-label="Training Steps" step={100} marks min={100} max={2000} disabled={isProcessing} />
-                <Typography sx={{ ml: 2, width: '70px' }}>{steps}</Typography>
+                <Typography sx={{ ml: 2, width: '40px' }}>{steps}</Typography>
               </Box>
 
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <Tooltip title="Learning rate controls how much to change the model in response to the estimated error each time the model weights are updated. A smaller learning rate means more precise adjustments but requires more training steps.">
-                  <IconButton size="small"><HelpOutlineIcon fontSize="small" /></IconButton>
-                </Tooltip>
-                <Typography sx={{ flexShrink: 0, mr: 2 }}>Learning Rate</Typography>
+                <Typography sx={{ flexShrink: 0, mr: 2 }}>{t('trainingPage.learningRate')}</Typography>
                 <Slider value={learningRate} onChange={(_, newValue) => setLearningRate(newValue as number)} aria-label="Learning Rate" step={1e-5} min={1e-5} max={1e-3} scale={(x) => x} disabled={isProcessing} />
                 <Typography sx={{ ml: 2, width: '70px' }}>{learningRate.toExponential(1)}</Typography>
               </Box>
 
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <Tooltip title="Sets the processing size for training images. Larger resolutions can preserve more detail but significantly increase training time and memory usage. It's recommended to match the common size of your base model (e.g., 512px for v1.5).">
+                <Typography sx={{ flexShrink: 0, mr: 2 }}>{t('trainingPage.resolution')}</Typography>
+                <Tooltip title={t('trainingPage.resolutionTooltip')}>
                   <IconButton size="small"><HelpOutlineIcon fontSize="small" /></IconButton>
                 </Tooltip>
-                <Typography sx={{ flexShrink: 0, mr: 2 }}>Resolution</Typography>
                 <Slider value={resolution} onChange={(_, newValue) => setResolution(newValue as number)} aria-label="Resolution" step={128} marks min={512} max={1024} disabled={isProcessing} />
-                <Typography sx={{ ml: 2, width: '70px' }}>{resolution}px</Typography>
+                <Typography sx={{ ml: 2, width: '50px' }}>{resolution}px</Typography>
               </Box>
 
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <Tooltip title="How many images the model 'sees' at once. On memory-constrained Macs, it's recommended to keep this at 1. Increasing this value can speed up training but dramatically increases memory consumption and may lead to failure.">
+                <Typography sx={{ flexShrink: 0, mr: 2 }}>{t('trainingPage.batchSize')}</Typography>
+                <Tooltip title={t('trainingPage.batchSizeTooltip')}>
                   <IconButton size="small"><HelpOutlineIcon fontSize="small" /></IconButton>
                 </Tooltip>
-                <Typography sx={{ flexShrink: 0, mr: 2 }}>Batch Size</Typography>
                 <Slider value={trainBatchSize} onChange={(_, newValue) => setTrainBatchSize(newValue as number)} aria-label="Batch Size" step={1} marks min={1} max={8} disabled={isProcessing} />
-                <Typography sx={{ ml: 2, width: '70px' }}>{trainBatchSize}</Typography>
+                <Typography sx={{ ml: 2, width: '30px' }}>{trainBatchSize}</Typography>
               </Box>
 
             </CardContent>
@@ -258,11 +254,11 @@ const TrainingPage: React.FC = () => {
       <Box sx={{ mt: 4, textAlign: 'center' }}>
         {!isTrainingActive ? (
           <Button variant="contained" color="primary" size="large" onClick={handleStartTraining} disabled={isProcessing} sx={{ minWidth: 150 }}>
-            {isProcessing ? <><CircularProgress size={24} color="inherit" sx={{ mr: 1 }} /> 训练中...</> : 'Start Training'}
+            {isProcessing ? <><CircularProgress size={24} color="inherit" sx={{ mr: 1 }} /> {t('trainingPage.training')}</> : t('trainingPage.startTraining')}
           </Button>
         ) : (
           <Button variant="contained" color="error" size="large" onClick={handleCancelTraining} disabled={!isTrainingActive}>
-            Cancel Training
+            {t('trainingPage.cancelTraining')}
           </Button>
         )}
       </Box>

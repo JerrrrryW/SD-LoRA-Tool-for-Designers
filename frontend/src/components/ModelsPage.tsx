@@ -7,6 +7,7 @@ import {
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
+import { useTranslation } from 'react-i18next';
 
 interface LoRAModel {
   name: string; // This is the folder name, used as ID
@@ -18,6 +19,7 @@ interface LoRAModel {
 }
 
 const ModelsPage: React.FC = () => {
+  const { t } = useTranslation();
   const [models, setModels] = useState<LoRAModel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -32,7 +34,7 @@ const ModelsPage: React.FC = () => {
       const response = await axios.get('http://localhost:8000/models');
       setModels(response.data);
     } catch (err) {
-      setError('Failed to fetch models. Is the backend server running?');
+      setError(t('modelsPage.fetchFailed'));
       console.error(err);
     } finally {
       setIsLoading(false);
@@ -41,7 +43,7 @@ const ModelsPage: React.FC = () => {
 
   useEffect(() => {
     fetchModels();
-  }, []);
+  }, [t]);
 
   const handleDownload = (modelName: string) => {
     window.open(`http://localhost:8000/models/download/${modelName}`);
@@ -60,7 +62,7 @@ const ModelsPage: React.FC = () => {
         setSelectedModel(null);
         fetchModels(); // Refresh the model list
       } catch (err) {
-        setError(`Failed to delete model ${selectedModel.name}.`);
+        setError(t('modelsPage.deleteFailed', { modelName: selectedModel.name }));
         console.error(err);
       }
     }
@@ -83,7 +85,7 @@ const ModelsPage: React.FC = () => {
       setNewName('');
       fetchModels();
     } catch (err) {
-      setError(`Failed to rename model.`);
+      setError(t('modelsPage.renameFailed'));
       console.error(err);
     }
   };
@@ -91,7 +93,7 @@ const ModelsPage: React.FC = () => {
   return (
     <Container maxWidth="lg">
       <Typography variant="h4" component="h1" gutterBottom>
-        Trained LoRA Models
+        {t('modelsPage.title')}
       </Typography>
 
       {isLoading && (
@@ -107,7 +109,7 @@ const ModelsPage: React.FC = () => {
       )}
 
       {!isLoading && !error && models.length === 0 && (
-        <Typography sx={{ mt: 4 }}>No trained models found.</Typography>
+        <Typography sx={{ mt: 4 }}>{t('modelsPage.noModels')}</Typography>
       )}
 
       <Grid container spacing={3} sx={{ mt: 2 }}>
@@ -118,7 +120,7 @@ const ModelsPage: React.FC = () => {
                 component="img"
                 height="140"
                 image={model.thumbnail_url || 'https://via.placeholder.com/300x140.png?text=No+Preview'}
-                alt={`Preview for ${model.model_name}`}
+                alt={t('modelsPage.previewAlt', { modelName: model.model_name })}
               />
               <CardContent sx={{ flexGrow: 1 }}>
                 {editingModel === model.name ? (
@@ -142,21 +144,21 @@ const ModelsPage: React.FC = () => {
                   </Box>
                 )}
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                  ID: {model.name}
+                  {t('modelsPage.id')} {model.name}
                 </Typography>
                 <Typography sx={{ mt: 1.5 }} color="text.secondary">
-                  Base Model: <strong>{model.base_model}</strong>
+                  {t('modelsPage.baseModel')} <strong>{model.base_model}</strong>
                 </Typography>
                 <Typography sx={{ mt: 1.5 }} color="text.secondary">
-                  Instance Prompt: <strong>{model.prompt}</strong>
+                  {t('modelsPage.instancePrompt')} <strong>{model.prompt}</strong>
                 </Typography>
                 <Typography sx={{ mt: 1 }} color="text.secondary">
-                  Created: {new Date(model.creation_time).toLocaleString()}
+                  {t('modelsPage.created')} {new Date(model.creation_time).toLocaleString()}
                 </Typography>
               </CardContent>
               <CardActions>
-                <Button size="small" onClick={() => handleDownload(model.name)}>Download</Button>
-                <Button size="small" color="error" onClick={() => handleDeleteClick(model)}>Delete</Button>
+                <Button size="small" onClick={() => handleDownload(model.name)}>{t('modelsPage.download')}</Button>
+                <Button size="small" color="error" onClick={() => handleDeleteClick(model)}>{t('modelsPage.delete')}</Button>
               </CardActions>
             </Card>
           </Grid>
@@ -168,16 +170,16 @@ const ModelsPage: React.FC = () => {
         open={openDeleteDialog}
         onClose={() => setOpenDeleteDialog(false)}
       >
-        <DialogTitle>Confirm Deletion</DialogTitle>
+        <DialogTitle>{t('modelsPage.confirmDeletionTitle')}</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            Are you sure you want to delete the model "{selectedModel?.model_name}"? This action cannot be undone.
+            {t('modelsPage.confirmDeletionContent', { modelName: selectedModel?.model_name })}
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenDeleteDialog(false)}>Cancel</Button>
+          <Button onClick={() => setOpenDeleteDialog(false)}>{t('modelsPage.cancel')}</Button>
           <Button onClick={handleDeleteConfirm} color="error" autoFocus>
-            Delete
+            {t('modelsPage.delete')}
           </Button>
         </DialogActions>
       </Dialog>

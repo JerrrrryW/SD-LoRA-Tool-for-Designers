@@ -6,9 +6,11 @@ import {
 } from '@mui/material';
 import DownloadIcon from '@mui/icons-material/Download';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import { useTranslation } from 'react-i18next';
 
 interface LoRAModel {
   name: string;
+  model_name: string;
   prompt: string;
   creation_time: string;
 }
@@ -23,12 +25,13 @@ interface InferenceStatus {
 }
 
 const InferencePage: React.FC = () => {
+  const { t } = useTranslation();
   const [prompt, setPrompt] = useState('');
   const [negativePrompt, setNegativePrompt] = useState('');
   const [selectedLora, setSelectedLora] = useState('None');
   const [loraModels, setLoraModels] = useState<LoRAModel[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [status, setStatus] = useState<InferenceStatus>({ 
+  const [status, setStatus] = useState<InferenceStatus>({
     status: 'idle', 
     progress: 0, 
     step: 0, 
@@ -65,7 +68,7 @@ const InferencePage: React.FC = () => {
           if (pollingInterval.current) clearInterval(pollingInterval.current);
           setIsProcessing(false);
           setGeneratedImage(`http://localhost:8000/generate/image/${newStatus.image_id}?t=${new Date().getTime()}`);
-          setSnackbar({ open: true, message: 'Image generated successfully!', severity: 'success' });
+          setSnackbar({ open: true, message: t('inferencePage.imageGeneratedSuccess'), severity: 'success' });
         } else if (newStatus.status === 'failed') {
           if (pollingInterval.current) clearInterval(pollingInterval.current);
           setIsProcessing(false);
@@ -87,18 +90,18 @@ const InferencePage: React.FC = () => {
     return () => {
       if (pollingInterval.current) clearInterval(pollingInterval.current);
     };
-  }, [isProcessing]);
+  }, [isProcessing, t]);
 
 
   const handleGenerateImage = async () => {
     if (!prompt) {
-      setSnackbar({ open: true, message: 'Please enter a prompt.', severity: 'error' });
+      setSnackbar({ open: true, message: t('inferencePage.enterPromptFirst'), severity: 'error' });
       return;
     }
 
     setIsProcessing(true);
     setGeneratedImage(null);
-    setStatus({ ...status, status: 'loading', message: 'Sending request to server...' });
+    setStatus({ ...status, status: 'loading', message: t('inferencePage.sendingRequest') });
 
     try {
       await axios.post('http://localhost:8000/generate', {
@@ -107,7 +110,7 @@ const InferencePage: React.FC = () => {
         lora_model: selectedLora === 'None' ? null : selectedLora,
       });
     } catch (error) {
-      let message = 'An unknown error occurred.';
+      let message = t('trainingPage.unknownError');
       if (axios.isAxiosError(error) && error.response) {
         message = error.response.data.detail || error.response.data.message || message;
       }
@@ -132,26 +135,26 @@ const InferencePage: React.FC = () => {
   return (
     <Container maxWidth={false}>
       <Typography variant="h4" component="h1" gutterBottom>
-        Stable Diffusion Inference
+        {t('inferencePage.title')}
       </Typography>
       <Grid container spacing={4}>
         <Grid item xs={12} md={4}>
           <Card sx={{ minWidth: 512 }}>
             <CardContent>
-              <Typography variant="h5" component="h2" gutterBottom>Parameters</Typography>
+              <Typography variant="h5" component="h2" gutterBottom>{t('inferencePage.parameters')}</Typography>
               <FormControl fullWidth sx={{ mt: 2 }}>
-                <InputLabel id="lora-select-label">Use LoRA Model (Optional)</InputLabel>
+                <InputLabel id="lora-select-label">{t('inferencePage.useLora')}</InputLabel>
                 <Select
                   labelId="lora-select-label"
                   value={selectedLora}
-                  label="Use LoRA Model (Optional)"
+                  label={t('inferencePage.useLora')}
                   onChange={(e) => setSelectedLora(e.target.value)}
                   disabled={isProcessing}
                 >
-                  <MenuItem value="None">None (Base Model Only)</MenuItem>
+                  <MenuItem value="None">{t('inferencePage.noneLora')}</MenuItem>
                   {loraModels.map((model) => (
                     <MenuItem key={model.name} value={model.name}>
-                      {model.name} 
+                      {model.model_name} 
                     </MenuItem>
                   ))}
                 </Select>
@@ -160,7 +163,7 @@ const InferencePage: React.FC = () => {
               <Box sx={{ mt: 3 }}>
                 <TextField
                   fullWidth
-                  label="Prompt (e.g., 'a beautiful landscape painting')"
+                  label={t('inferencePage.prompt')}
                   variant="outlined"
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
@@ -173,7 +176,7 @@ const InferencePage: React.FC = () => {
               <Box sx={{ mt: 2 }}>
                 <TextField
                   fullWidth
-                  label="Negative Prompt (e.g., 'blurry, low quality')"
+                  label={t('inferencePage.negativePrompt')}
                   variant="outlined"
                   value={negativePrompt}
                   onChange={(e) => setNegativePrompt(e.target.value)}
@@ -192,7 +195,7 @@ const InferencePage: React.FC = () => {
                   disabled={isProcessing}
                   sx={{ width: '100%' }}
                 >
-                  {isProcessing ? <CircularProgress size={24} color="inherit" /> : 'Generate Image'}
+                  {isProcessing ? <CircularProgress size={24} color="inherit" /> : t('inferencePage.generateImage')}
                 </Button>
               </Box>
             </CardContent>
@@ -201,7 +204,7 @@ const InferencePage: React.FC = () => {
         <Grid item xs={12} md={8}>
           <Card sx={{ height: '100%', minWidth: 512 }}>
             <CardContent sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-              <Typography variant="h5" component="h2" gutterBottom>Result</Typography>
+              <Typography variant="h5" component="h2" gutterBottom>{t('inferencePage.result')}</Typography>
               <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8F9FA', borderRadius: 1, minHeight: 512 }}>
                 {isTaskActive && (
                   <Box sx={{ textAlign: 'center' }}>
@@ -216,16 +219,16 @@ const InferencePage: React.FC = () => {
                   </Paper>
                 )}
                  {!isTaskActive && !generatedImage && (
-                  <Typography variant="body1" color="text.secondary">Image will appear here</Typography>
+                  <Typography variant="body1" color="text.secondary">{t('inferencePage.imagePlaceholder')}</Typography>
                 )}
               </Box>
               {generatedImage && !isTaskActive && (
                 <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center', gap: 2 }}>
                   <Button variant="outlined" startIcon={<DownloadIcon />} onClick={handleDownload}>
-                    Download
+                    {t('inferencePage.download')}
                   </Button>
-                  <Button variant="outlined" startIcon={<ContentCopyIcon />} onClick={() => navigator.clipboard.writeText('Seed value not available')}>
-                    Copy Seed
+                  <Button variant="outlined" startIcon={<ContentCopyIcon />} onClick={() => navigator.clipboard.writeText(t('inferencePage.seedNotAvailable'))}>
+                    {t('inferencePage.copySeed')}
                   </Button>
                 </Box>
               )}
@@ -251,3 +254,4 @@ const InferencePage: React.FC = () => {
 };
 
 export default InferencePage;
+

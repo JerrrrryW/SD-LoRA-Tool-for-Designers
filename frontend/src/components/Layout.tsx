@@ -1,24 +1,15 @@
 
 import React, { useState } from 'react';
 import {
-  AppBar,
-  Box,
-  CssBaseline,
-  Drawer,
-  IconButton,
-  List,
-  ListItem,
-  ListItemButton,
-  ListItemIcon,
-  ListItemText,
-  Toolbar,
-  Typography,
+  AppBar, Box, CssBaseline, Drawer, IconButton, List, ListItem, ListItemButton, ListItemIcon, 
+  ListItemText, Toolbar, Typography, Divider, Select, MenuItem, FormControl, InputLabel
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import ModelTrainingIcon from '@mui/icons-material/ModelTraining';
 import { Link, useLocation } from 'react-router-dom';
 import ImagesearchRollerIcon from '@mui/icons-material/ImagesearchRoller';
 import StorageIcon from '@mui/icons-material/Storage';
+import { useTranslation } from 'react-i18next';
 
 const drawerWidth = 240;
 
@@ -27,6 +18,7 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
+  const { t, i18n } = useTranslation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
 
@@ -34,16 +26,20 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     setMobileOpen(!mobileOpen);
   };
 
+  const handleLanguageChange = (event: any) => {
+    i18n.changeLanguage(event.target.value);
+  };
+
   const menuItems = [
-    { text: 'LoRA Training', path: '/', icon: <ModelTrainingIcon /> },
-    { text: 'SD Inference', path: '/inference', icon: <ImagesearchRollerIcon /> },
-    { text: 'Trained Models', path: '/models', icon: <StorageIcon /> },
+    { text: t('sidebar.training'), path: '/', icon: <ModelTrainingIcon /> },
+    { text: t('sidebar.inference'), path: '/inference', icon: <ImagesearchRollerIcon /> },
+    { text: t('sidebar.models'), path: '/models', icon: <StorageIcon /> },
   ];
 
   const drawer = (
-    <div>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <Toolbar />
-      <List>
+      <List sx={{ flexGrow: 1 }}>
         {menuItems.map((item) => (
           <ListItem key={item.text} disablePadding>
             <ListItemButton
@@ -66,7 +62,22 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </ListItem>
         ))}
       </List>
-    </div>
+      <Divider />
+      <Box sx={{ p: 2 }}>
+        <FormControl fullWidth>
+          <InputLabel id="language-select-label">{t('language')}</InputLabel>
+          <Select
+            labelId="language-select-label"
+            value={i18n.language}
+            label={t('language')}
+            onChange={handleLanguageChange}
+          >
+            <MenuItem value={'en'}>English</MenuItem>
+            <MenuItem value={'zh'}>中文</MenuItem>
+          </Select>
+        </FormControl>
+      </Box>
+    </Box>
   );
 
   return (
@@ -89,7 +100,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <MenuIcon />
           </IconButton>
           <Typography variant="h6" noWrap component="div">
-            DHUX AIGC Center
+            {t('sidebar.title')}
           </Typography>
         </Toolbar>
       </AppBar>
