@@ -2,20 +2,22 @@
 
 ## Project Overview
 
-This project is a web-based platform for locally training LoRA (Low-Rank Adaptation) models and running Stable Diffusion inference on Apple Silicon (M-series) Macs. It provides a simple, designer-friendly user interface for two main tasks:
+This project is a web-based platform for locally training LoRA (Low-Rank Adaptation) models and running Stable Diffusion inference on Apple Silicon (M-series) Macs. It provides a simple, designer-friendly user interface for three main tasks:
 
 1.  **LoRA Training**: Upload images, configure training parameters, and run the training process without needing to use the command line directly.
-2.  **Stable Diffusion Inference**: A simple interface to generate images from text prompts using a base Stable Diffusion model.
+2.  **Stable Diffusion Inference**: A simple interface to generate images from text prompts, with the option to use trained LoRA models.
+3.  **Model Management**: A page to view, download, and delete trained LoRA models.
 
 ### Architecture
 
 The application uses a client-server architecture:
 
--   **Frontend**: A single-page application built with **React (using Vite)** and **TypeScript**. It uses **Material-UI (MUI)** for its component library and **React Router** for navigation. The frontend now consists of two main pages: a training page and an inference page, wrapped in a consistent layout with a sidebar.
+-   **Frontend**: A single-page application built with **React (using Vite)** and **TypeScript**. It uses **Material-UI (MUI)** for its component library and **React Router** for navigation. The frontend now consists of three main pages: a training page, an inference page, and a model management page, all wrapped in a consistent layout with a sidebar.
 
 -   **Backend**: A Python server built with **FastAPI**. It exposes a REST API to the frontend. 
-    -   The core training logic is handled by a modified version of the Hugging Face `diffusers` library's standard LoRA training script. Training is run as a **background task** to prevent HTTP timeouts.
-    -   The inference logic uses the `diffusers` library to generate images from prompts. The Stable Diffusion model is loaded **on-demand** for each inference request to conserve memory for the training process, and released immediately after.
+    -   The core training logic is handled by a modified version of the Hugging Face `diffusers` library's standard LoRA training script. Training is run as a **background task** to prevent HTTP timeouts. The system now automatically cleans up empty model directories from failed or terminated training runs.
+    -   The inference logic uses the `diffusers` library to generate images from prompts. It supports loading trained LoRA models on top of the base Stable Diffusion model. The model is loaded **on-demand** for each inference request to conserve memory, and released immediately after.
+    -   Model management endpoints are provided to list, download (as zip archives), and delete trained LoRA models.
 
 ### Core Technologies
 
@@ -72,17 +74,18 @@ The frontend is a standard Vite-based React application.
 
 -   **Backend API**:
     -   The main FastAPI application is in `Server/main.py`.
-    -   Long-running tasks like AI model training are executed in background threads using `BackgroundTasks`.
-    -   A new `/generate` endpoint has been added for Stable Diffusion inference. It loads the model on-demand and releases it after use to conserve memory.
-    -   The core training logic resides in `Server/train_lora.py`.
+    -   Long-running tasks (training, inference) are executed in background threads using `BackgroundTasks`.
+    -   The `/generate` endpoint supports a `lora_model` parameter to apply trained LoRA models during inference.
+    -   New endpoints `/models`, `/models/download/{model_name}`, and `/models/delete/{model_name}` have been added for model management.
+    -   The system now automatically cleans up empty model directories to prevent clutter from failed training runs.
 
 -   **Frontend UI**:
-    -   The main application component is `frontend/src/App.tsx`, which now includes routing.
-    -   A new `Layout.tsx` component provides a consistent sidebar and app bar for all pages.
+    -   The main application component is `frontend/src/App.tsx`, which now includes routing for all pages.
+    -   A `Layout.tsx` component provides a consistent sidebar and app bar.
     -   The training UI is in `frontend/src/components/TrainingPage.tsx`.
-    -   A new inference UI has been added in `frontend/src/components/InferencePage.tsx`.
-    -   The application communicates with the backend via REST API calls using `axios`.
+    -   The inference UI in `frontend/src/components/InferencePage.tsx` now includes a dropdown to select a trained LoRA model.
+    -   A new model management UI has been added in `frontend/src/components/ModelsPage.tsx`.
 
 -   **Model & Data Storage**:
     -   Images uploaded for training are temporarily stored in the `temp_training_images` directory.
-    -   Completed LoRA models are saved to the `lora_models` directory, with each training run getting its own timestamped sub-folder.
+    -   Completed LoRA models are saved to the `lora_models` directory. Each training run gets its own timestamped sub-folder.

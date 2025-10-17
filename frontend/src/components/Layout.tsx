@@ -8,6 +8,7 @@ import {
   IconButton,
   List,
   ListItem,
+  ListItemButton,
   ListItemIcon,
   ListItemText,
   Toolbar,
@@ -15,7 +16,7 @@ import {
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import ModelTrainingIcon from '@mui/icons-material/ModelTraining';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import ImagesearchRollerIcon from '@mui/icons-material/ImagesearchRoller';
 import StorageIcon from '@mui/icons-material/Storage';
 
@@ -27,34 +28,43 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const location = useLocation();
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
   };
 
-const drawer = (
+  const menuItems = [
+    { text: 'LoRA Training', path: '/', icon: <ModelTrainingIcon /> },
+    { text: 'SD Inference', path: '/inference', icon: <ImagesearchRollerIcon /> },
+    { text: 'Trained Models', path: '/models', icon: <StorageIcon /> },
+  ];
+
+  const drawer = (
     <div>
       <Toolbar />
       <List>
-        <ListItem button component={Link} to="/" key="training">
-          <ListItemIcon>
-            <ModelTrainingIcon />
-          </ListItemIcon>
-          <ListItemText primary="LoRA Training" />
-        </ListItem>
-        <ListItem button component={Link} to="/inference" key="inference">
-          <ListItemIcon>
-            <ImagesearchRollerIcon />
-          </ListItemIcon>
-          <ListItemText primary="SD Inference" />
-        </ListItem>
-        <ListItem button component={Link} to="/models" key="models">
-          <ListItemIcon>
-            <StorageIcon />
-          </ListItemIcon>
-          <ListItemText primary="Trained Models" />
-        </ListItem>
-        {/* Future pages can be added here */}
+        {menuItems.map((item) => (
+          <ListItem key={item.text} disablePadding>
+            <ListItemButton
+              component={Link}
+              to={item.path}
+              selected={location.pathname === item.path}
+              sx={{
+                '&.Mui-selected': {
+                  backgroundColor: 'rgba(0, 123, 255, 0.08)',
+                  borderLeft: '3px solid #007BFF',
+                  '&:hover': {
+                    backgroundColor: 'rgba(0, 123, 255, 0.12)',
+                  },
+                },
+              }}
+            >
+              <ListItemIcon>{item.icon}</ListItemIcon>
+              <ListItemText primary={item.text} />
+            </ListItemButton>
+          </ListItem>
+        ))}
       </List>
     </div>
   );
@@ -85,7 +95,7 @@ const drawer = (
       </AppBar>
       <Drawer
         component="nav"
-        sx={{ 
+        sx={{
           width: drawerWidth,
           flexShrink: 0,
           '& .MuiDrawer-paper': {
@@ -100,10 +110,15 @@ const drawer = (
       </Drawer>
       <Box
         component="main"
-        sx={{ flexGrow: 1, bgcolor: 'background.default', p: 3 }}
+        sx={{
+          flexGrow: 1,
+          bgcolor: 'background.default',
+          p: 3,
+          width: '100%',
+        }}
       >
         <Toolbar />
-        {children}
+        <Box sx={{ maxWidth: '1280px', margin: '0 auto' }}>{children}</Box>
       </Box>
     </Box>
   );
