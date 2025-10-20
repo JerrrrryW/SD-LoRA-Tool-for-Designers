@@ -15,10 +15,11 @@ import {
   Typography,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
-import ModelTrainingIcon from '@mui/icons-material/ModelTraining';
 import { Link, useLocation } from 'react-router-dom';
+import ModelTrainingIcon from '@mui/icons-material/ModelTraining';
 import ImagesearchRollerIcon from '@mui/icons-material/ImagesearchRoller';
 import StorageIcon from '@mui/icons-material/Storage';
+import BrushIcon from '@mui/icons-material/Brush';
 
 const drawerWidth = 240;
 
@@ -38,7 +39,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { text: 'LoRA Training', path: '/', icon: <ModelTrainingIcon /> },
     { text: 'SD Inference', path: '/inference', icon: <ImagesearchRollerIcon /> },
     { text: 'Trained Models', path: '/models', icon: <StorageIcon /> },
+    { text: 'Canvas', path: '/canvas', icon: <BrushIcon /> },
   ];
+  const isCanvasRoute = location.pathname === '/canvas';
 
   const drawer = (
     <div>
@@ -118,7 +121,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         }}
       >
         <Toolbar />
-        <Box sx={{ maxWidth: '1280px', margin: '0 auto' }}>{children}</Box>
+        <Box
+          sx={{
+            maxWidth: isCanvasRoute ? '100%' : '1280px',
+            margin: isCanvasRoute ? 0 : '0 auto',
+            height: isCanvasRoute ? '100%' : 'auto',
+          }}
+        >
+          {children}
+        </Box>
       </Box>
     </Box>
   );

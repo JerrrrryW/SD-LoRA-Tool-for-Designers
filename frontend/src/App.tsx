@@ -4,6 +4,7 @@ import Layout from './components/Layout';
 import TrainingPage from './components/TrainingPage';
 import InferencePage from './components/InferencePage';
 import { ThemeProvider, createTheme } from '@mui/material';
+import CanvasPage from './components/CanvasPage';
 
 // A simple theme for a professional look
 const theme = createTheme({
@@ -57,6 +58,7 @@ function App() {
             <Route path="/" element={<TrainingPage />} />
             <Route path="/inference" element={<InferencePage />} />
             <Route path="/models" element={<ModelsPage />} />
+            <Route path="/canvas" element={<CanvasPage />} />
           </Routes>
         </Layout>
       </Router>
